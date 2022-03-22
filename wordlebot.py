@@ -115,7 +115,8 @@ class WordleBot:
             self.solve(driver)
             self.reset()
         print('game over!')
-        time.sleep(1000)
+        time.sleep(5)
+        exit()
 
     def solve(self, driver):
         rows = driver.find_elements_by_class_name('RowL')
@@ -140,7 +141,14 @@ class WordleBot:
                 for square in answers
             ]
 
-            if self.check_win() or self.round == 5:
+            if self.game_finished():
+                print(self.clue_summary)
+                print(f'Win: {self.guess}')
+                time.sleep(0.25)
+                body.send_keys(Keys.ENTER)
+                break
+            elif self.round == 5:
+                print('Lost')
                 time.sleep(0.25)
                 body.send_keys(Keys.ENTER)
                 break
@@ -179,46 +187,32 @@ class WordleBot:
                 res += pos_weight[i].get(letter)
             return round(res, 1)
 
-        return sorted([(x, apply_weights(x)) for x in potential_answers],
-                      key=lambda x: x[1],
-                      reverse=True)
+        weighted_words_tup = sorted([(x, apply_weights(x)) for x in potential_answers],
+                                    key=lambda x: x[1],
+                                    reverse=True)
+        weighted_words = weighted_words_tup[0][0]
+
+        return weighted_words, weighted_words_tup, pos_weight
 
     def best_guess(self):
-
-        def clues():
-            print('\n')
-            print(
-                f'{self.a} | letter: {self.a.letter} | exclude: {self.a.exclude}'
-            )
-            print(
-                f'{self.b} | letter: {self.b.letter} | exclude: {self.b.exclude}'
-            )
-            print(
-                f'{self.c} | letter: {self.c.letter} | exclude: {self.c.exclude}'
-            )
-            print(
-                f'{self.d} | letter: {self.d.letter} | exclude: {self.d.exclude}'
-            )
-            print(
-                f'{self.e} | letter: {self.e.letter} | exclude: {self.e.exclude}'
-            )
-
-        known_letters = self.known_letters
+        known_letters = self.known_letters.copy()
 
         for square in self.squares:
             if square.letter:
                 known_letters.append(square.letter)
 
         known_letters = list(''.join(known_letters).rjust(5, '?'))
+        
         potential_answers = set(search_trie(trie, known_letters, self.a))
         potential_answers = [
             word for word in potential_answers if word not in self.used_words
         ]
-        weighted_guesses = self.weighted_answers(potential_answers)
-        self.guess = weighted_guesses[0][0]
+        best_guess, weighted_guesses_tup, pos_weight = self.weighted_answers(
+            potential_answers)
+        self.guess = best_guess
         self.used_words.append(self.guess)
 
-    def check_win(self):
+    def game_finished(self):
         return all(clues == 'correct' or clues == 'empty'
                    for clues in self.clues)
 
@@ -236,6 +230,9 @@ class WordleBot:
             elif clue == 'absent':
                 if letter not in self.exclude_list and letter not in self.known_letters:
                     self.exclude_list += letter
+            else:
+                print('unmet clues criteria')
+                pass
 
         for square in self.squares:
             square.exclude += self.exclude_list
@@ -251,6 +248,17 @@ class WordleBot:
 
         self.guess = 'arose'
         self.round = 0
+
+    @property
+    def clue_summary(self):
+        return str(
+            f'{self.a} | letter: {self.a.letter} | exclude: {self.a.exclude}\n'
+            f'{self.b} | letter: {self.b.letter} | exclude: {self.b.exclude}\n'
+            f'{self.c} | letter: {self.c.letter} | exclude: {self.c.exclude}\n'
+            f'{self.d} | letter: {self.d.letter} | exclude: {self.d.exclude}\n'
+            f'{self.e} | letter: {self.e.letter} | exclude: {self.e.exclude}\n'
+            f'Known letters: {self.known_letters}\n'
+        )
 
 
 if __name__ == '__main__':
